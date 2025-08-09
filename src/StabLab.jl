@@ -6,6 +6,9 @@ using LinearAlgebra
 # Export main deviation functions
 export adev, mdev, mhdev, hdev, mhtotdev, tdev, ldev, totdev, mtotdev, htotdev
 
+# Export helper functions
+export noise_id, compute_ci
+
 # Export data types
 export DeviationResult
 
@@ -32,7 +35,7 @@ struct DeviationResult{T<:Real}
     deviation::Vector{T}
     edf::Vector{T}
     ci::Matrix{T}
-    alpha::Vector{T}
+    alpha::Vector{Int}
     neff::Vector{Int}
     tau0::T
     N::Int

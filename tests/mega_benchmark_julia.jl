@@ -2,7 +2,7 @@
 # Tests ADEV, MDEV, HDEV with 10^7 data points across 30 datasets
 
 using Pkg
-Pkg.activate(".")
+Pkg.activate("..")
 
 using StabLab
 using NPZ

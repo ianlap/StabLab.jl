@@ -69,12 +69,14 @@ function adev(phase_data::AbstractVector{T}, tau0::Real;
         edf_vals[k] = L  # Simple approximation
     end
     
-    # Compute confidence intervals
-    ci = compute_ci(adev_vals, edf_vals, confidence, alpha, neff)
+    # Placeholder EDF and CI (computed on demand via compute_ci())
+    edf_placeholder = fill(NaN, length(adev_vals))
+    ci_placeholder = fill(NaN, length(adev_vals), 2)
+    alpha_placeholder = fill(0, length(adev_vals))  # Default to White FM
     
     # Create result structure
     result = DeviationResult(
-        tau, adev_vals, edf_vals, ci, alpha, neff,
+        tau, adev_vals, edf_placeholder, ci_placeholder, alpha_placeholder, neff,
         tau0, N, "adev", confidence
     )
     
@@ -161,12 +163,14 @@ function mdev(phase_data::AbstractVector{T}, tau0::Real;
         edf_vals[k] = N_eff_k  # Simple approximation for now
     end
     
-    # Compute confidence intervals
-    ci = compute_ci(mdev_vals, edf_vals, confidence, alpha, neff)
+    # Placeholder EDF and CI (computed on demand via compute_ci())
+    edf_placeholder = fill(NaN, length(mdev_vals))
+    ci_placeholder = fill(NaN, length(mdev_vals), 2)
+    alpha_placeholder = fill(0, length(mdev_vals))  # Default to White FM
     
     # Create result structure
     result = DeviationResult(
-        tau, mdev_vals, edf_vals, ci, alpha, neff,
+        tau, mdev_vals, edf_placeholder, ci_placeholder, alpha_placeholder, neff,
         tau0, N, "mdev", confidence
     )
     
@@ -230,12 +234,14 @@ function mhdev(phase_data::AbstractVector{T}, tau0::Real;
         edf_vals[k] = N_eff  # Simple approximation for now
     end
     
-    # Compute confidence intervals
-    ci = compute_ci(mhdev_vals, edf_vals, confidence, alpha, neff)
+    # Placeholder EDF and CI (computed on demand via compute_ci())
+    edf_placeholder = fill(NaN, length(mhdev_vals))
+    ci_placeholder = fill(NaN, length(mhdev_vals), 2)
+    alpha_placeholder = fill(0, length(mhdev_vals))  # Default to White FM
     
     # Create result structure
     result = DeviationResult(
-        tau, mhdev_vals, edf_vals, ci, alpha, neff,
+        tau, mhdev_vals, edf_placeholder, ci_placeholder, alpha_placeholder, neff,
         tau0, N, "mhdev", confidence
     )
     
@@ -424,12 +430,14 @@ function totdev(phase_data::AbstractVector{T}, tau0::Real;
         edf_vals[k] = neff[k]  # Simple approximation
     end
     
-    # Compute confidence intervals
-    ci = compute_ci(totdev_vals, edf_vals, confidence, alpha, neff)
+    # Placeholder EDF and CI (computed on demand via compute_ci())
+    edf_placeholder = fill(NaN, length(totdev_vals))
+    ci_placeholder = fill(NaN, length(totdev_vals), 2)
+    alpha_placeholder = fill(0, length(totdev_vals))  # Default to White FM
     
     # Create result structure
     result = DeviationResult(
-        tau, totdev_vals, edf_vals, ci, alpha, neff,
+        tau, totdev_vals, edf_placeholder, ci_placeholder, alpha_placeholder, neff,
         tau0, N, "totdev", confidence
     )
     
@@ -497,12 +505,14 @@ function hdev(phase_data::AbstractVector{T}, tau0::Real;
         edf_vals[k] = L  # Simple approximation for now
     end
     
-    # Compute confidence intervals
-    ci = compute_ci(hdev_vals, edf_vals, confidence, alpha, neff)
+    # Placeholder EDF and CI (computed on demand via compute_ci())
+    edf_placeholder = fill(NaN, length(hdev_vals))
+    ci_placeholder = fill(NaN, length(hdev_vals), 2)
+    alpha_placeholder = fill(0, length(hdev_vals))  # Default to White FM
     
     # Create result structure
     result = DeviationResult(
-        tau, hdev_vals, edf_vals, ci, alpha, neff,
+        tau, hdev_vals, edf_placeholder, ci_placeholder, alpha_placeholder, neff,
         tau0, N, "hdev", confidence
     )
     
@@ -650,12 +660,14 @@ function mtotdev(phase_data::AbstractVector{T}, tau0::Real;
         edf_vals[k] = neff[k]  # Simple approximation
     end
     
-    # Compute confidence intervals
-    ci = compute_ci(mtotdev_vals, edf_vals, confidence, alpha, neff)
+    # Placeholder EDF and CI (computed on demand via compute_ci())
+    edf_placeholder = fill(NaN, length(mtotdev_vals))
+    ci_placeholder = fill(NaN, length(mtotdev_vals), 2)
+    alpha_placeholder = fill(0, length(mtotdev_vals))  # Default to White FM
     
     # Create result structure
     result = DeviationResult(
-        tau, mtotdev_vals, edf_vals, ci, alpha, neff,
+        tau, mtotdev_vals, edf_placeholder, ci_placeholder, alpha_placeholder, neff,
         tau0, N, "mtotdev", confidence
     )
     
@@ -841,12 +853,14 @@ function htotdev(phase_data::AbstractVector{T}, tau0::Real;
         end
     end
     
-    # Compute confidence intervals
-    ci = compute_ci(htotdev_vals, edf_vals, confidence, alpha, neff)
+    # Placeholder EDF and CI (computed on demand via compute_ci())
+    edf_placeholder = fill(NaN, length(htotdev_vals))
+    ci_placeholder = fill(NaN, length(htotdev_vals), 2)
+    alpha_placeholder = fill(0, length(htotdev_vals))  # Default to White FM
     
     # Create result structure
     result = DeviationResult(
-        tau, htotdev_vals, edf_vals, ci, alpha, neff,
+        tau, htotdev_vals, edf_placeholder, ci_placeholder, alpha_placeholder, neff,
         tau0, N, "htotdev", confidence
     )
     
@@ -977,12 +991,14 @@ function mhtotdev(phase_data::AbstractVector{T}, tau0::Real;
     alpha = alpha[valid_indices]
     edf_vals = edf_vals[valid_indices]  # Will remain NaN - no published EDF model
     
-    # Compute confidence intervals
-    ci = compute_ci(mhtotdev_vals, edf_vals, confidence, alpha, neff)
+    # Placeholder EDF and CI (computed on demand via compute_ci())
+    edf_placeholder = fill(NaN, length(mhtotdev_vals))
+    ci_placeholder = fill(NaN, length(mhtotdev_vals), 2)
+    alpha_placeholder = fill(0, length(mhtotdev_vals))  # Default to White FM
     
     # Create result structure
     result = DeviationResult(
-        tau, mhtotdev_vals, edf_vals, ci, alpha, neff,
+        tau, mhtotdev_vals, edf_placeholder, ci_placeholder, alpha_placeholder, neff,
         tau0, N, "mhtotdev", confidence
     )
     

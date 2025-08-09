@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2025-08-09
+
+### Added
+- **Noise identification system**: Lag-1 ACF and B1 ratio methods for power-law noise characterization
+- **Equivalent degrees of freedom (EDF)**: Full Greenhall algorithm implementation for all deviation types
+- **Professional confidence intervals**: Chi-squared statistical bounds with Gaussian fallback
+- **Two-tier CI system**: Simple σ/√n mode for fair benchmarking + full EDF-based analysis
+- **Statistical integration**: All deviation functions now support on-demand confidence intervals via `compute_ci()`
+- **Fair performance benchmarking**: Competitive with AllanTools when using equivalent statistical methods
+
+### Improved  
+- **Performance optimization**: Resolved 6x performance gap by implementing optional advanced statistics
+- **API consistency**: Unified interface for both simple statistical errors and advanced confidence intervals
+- **Documentation**: Comprehensive statistical methods documentation and usage examples
+
+### Technical
+- **Dependencies**: Added Distributions.jl for chi-squared calculations
+- **Method flexibility**: `compute_ci(result, method="simple"|"full")` for different statistical approaches
+- **Cross-validation**: Verified statistical correctness against MATLAB and Python implementations
+
 ## [0.3.0] - 2025-08-09
 
 ### Added
