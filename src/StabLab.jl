@@ -4,7 +4,7 @@ using Statistics
 using LinearAlgebra
 
 # Export main deviation functions
-export adev, mdev, mhdev, mhtotdev, tdev, ldev, totdev
+export adev, mdev, mhdev, hdev, mhtotdev, tdev, ldev, totdev, mtotdev, htotdev
 
 # Export data types
 export DeviationResult

@@ -435,3 +435,577 @@ function totdev(phase_data::AbstractVector{T}, tau0::Real;
     
     return result
 end
+
+"""
+    hdev(phase_data, tau0; mlist=nothing, confidence=0.683)
+
+Compute Hadamard deviation from phase data.
+Hadamard deviation uses overlapping third differences for robust frequency drift rejection.
+
+# Arguments
+- `phase_data`: Phase data vector (seconds)
+- `tau0`: Sampling interval (seconds)
+- `mlist`: Averaging factors (optional, defaults to octave spacing with ≥4m points)
+- `confidence`: Confidence level for intervals (default: 0.683)
+
+# Returns
+Hadamard deviation (dimensionless frequency stability measure)
+
+# References
+NIST SP1065 Sections 5.2.8–5.2.9
+"""
+function hdev(phase_data::AbstractVector{T}, tau0::Real;
+              mlist::Union{Nothing,AbstractVector{Int}}=nothing,
+              confidence::Real=0.683) where T<:Real
+    
+    # Validate inputs
+    x = validate_phase_data(phase_data)
+    tau0 = validate_tau0(tau0)
+    N = length(x)
+    
+    # Default m_list: octave-spaced values with ≥4m points available (exact MATLAB logic)
+    if mlist === nothing
+        mlist = [2^k for k in 0:floor(Int, log2(N/4))]
+    end
+    
+    # Initialize outputs
+    tau = mlist .* tau0
+    hdev_vals = fill(NaN, length(mlist))
+    edf_vals = fill(NaN, length(mlist))
+    neff = fill(0, length(mlist))
+    
+    # Noise identification (placeholder)
+    alpha = noise_id(x, mlist, "phase")
+    
+    # Compute overlapping HDEV using third differences
+    for (k, m) in enumerate(mlist)
+        L = N - 3*m
+        if L <= 0
+            break
+        end
+        neff[k] = L
+        
+        # Third difference: x(n+3m) - 3x(n+2m) + 3x(n+m) - x(n)
+        # MATLAB: d3 = x(1+3*m:N) - 3*x(1+2*m:N-m) + 3*x(1+m:N-2*m) - x(1:L);
+        d3 = x[1+3*m:N] - 3*x[1+2*m:N-m] + 3*x[1+m:N-2*m] - x[1:L]
+        
+        # SP1065: σ²_H(τ) = ⟨(Δ³x)²⟩ / (6·τ²)
+        hvar = mean(d3.^2) / (6 * tau[k]^2)
+        hdev_vals[k] = sqrt(hvar)
+        
+        # EDF calculation (placeholder)
+        edf_vals[k] = L  # Simple approximation for now
+    end
+    
+    # Compute confidence intervals
+    ci = compute_ci(hdev_vals, edf_vals, confidence, alpha, neff)
+    
+    # Create result structure
+    result = DeviationResult(
+        tau, hdev_vals, edf_vals, ci, alpha, neff,
+        tau0, N, "hdev", confidence
+    )
+    
+    return result
+end
+
+# Multiple dispatch for hdev different return patterns
+function hdev(phase_data::AbstractVector, tau0::Real, ::Val{2}; kwargs...)
+    result = hdev(phase_data, tau0; kwargs...)
+    return result.tau, result.deviation
+end
+
+function hdev(phase_data::AbstractVector, tau0::Real, ::Val{3}; kwargs...)
+    result = hdev(phase_data, tau0; kwargs...)
+    return result.tau, result.deviation, result.edf
+end
+
+function hdev(phase_data::AbstractVector, tau0::Real, ::Val{4}; kwargs...)
+    result = hdev(phase_data, tau0; kwargs...)
+    return result.tau, result.deviation, result.edf, result.ci
+end
+
+function hdev(phase_data::AbstractVector, tau0::Real, ::Val{5}; kwargs...)
+    result = hdev(phase_data, tau0; kwargs...)
+    return result.tau, result.deviation, result.edf, result.ci, result.alpha
+end
+
+"""
+    mtotdev(phase_data, tau0; mlist=nothing, confidence=0.683)
+
+Compute Modified total deviation from phase data.
+Modified total deviation uses half-average detrending method and uninverted even reflection.
+
+# Arguments
+- `phase_data`: Phase data vector (seconds)
+- `tau0`: Sampling interval (seconds)
+- `mlist`: Averaging factors (optional, defaults to octave spacing with ≥3m points)
+- `confidence`: Confidence level for intervals (default: 0.683)
+
+# Returns
+Modified total deviation (dimensionless frequency stability measure)
+
+# References
+NIST SP1065 Section 5.2.12
+"""
+function mtotdev(phase_data::AbstractVector{T}, tau0::Real;
+                 mlist::Union{Nothing,AbstractVector{Int}}=nothing,
+                 confidence::Real=0.683) where T<:Real
+    
+    # Validate inputs
+    x = validate_phase_data(phase_data)
+    tau0 = validate_tau0(tau0)
+    N = length(x)
+    
+    # Default m_list: octave-spaced values with ≥3m points available (exact MATLAB logic)
+    if mlist === nothing
+        mlist = [2^k for k in 0:floor(Int, log2(N/3))]
+    end
+    
+    # Initialize outputs
+    tau = mlist .* tau0
+    mtotdev_vals = fill(NaN, length(mlist))
+    Mvar = fill(NaN, length(mlist))
+    edf_vals = fill(NaN, length(mlist))
+    neff = fill(0, length(mlist))
+    
+    # Noise identification (placeholder)
+    alpha = noise_id(x, mlist, "phase")
+    
+    # Compute MTOTVAR for each m
+    valid_indices = Int[]
+    for (k, m) in enumerate(mlist)
+        nsubs = N - 3*m + 1
+        neff[k] = nsubs
+        
+        if nsubs < 1
+            continue
+        end
+        
+        push!(valid_indices, k)
+        outer_sum = zero(T)
+        
+        for n in 1:nsubs
+            # Extract 3m phase points
+            seq = x[n:n+3*m-1]
+            half_n = 3*m / 2
+            
+            # Detrend using half-average method
+            if m == 1
+                first_half = seq[1]
+                last_half = seq[3]
+                slope = (last_half - first_half) / (2 * tau0)
+            else
+                first_half = mean(seq[1:floor(Int, half_n)])
+                last_half = mean(seq[floor(Int, half_n)+1:end])
+                slope = (last_half - first_half) / (half_n * tau0)
+            end
+            
+            # Remove linear trend
+            seq_detrended = seq - slope * tau0 * T.(0:3*m-1)
+            
+            # Extend by uninverted even reflection
+            ext = [seq_detrended[end:-1:1]; seq_detrended; seq_detrended[end:-1:1]]
+            
+            # Calculate second differences using cumsum
+            cs = cumsum([zero(T); ext])
+            avg1 = (cs[1+m:6*m+m] - cs[1:6*m]) ./ m
+            avg2 = (cs[1+2*m:6*m+2*m] - cs[1+m:6*m+m]) ./ m
+            avg3 = (cs[1+3*m:6*m+3*m] - cs[1+2*m:6*m+2*m]) ./ m
+            
+            # Second differences
+            d2 = avg3 - 2*avg2 + avg1
+            
+            # Accumulate variance
+            outer_sum += sum(d2.^2) / (6 * m)
+        end
+        
+        # Normalize for Modified Total variance
+        Mvar[k] = outer_sum / (2 * (m * tau0)^2 * nsubs)
+    end
+    
+    # Trim to valid results only
+    if isempty(valid_indices)
+        # Return empty results if no valid calculations
+        result = DeviationResult(
+            T[], T[], T[], Matrix{T}(undef, 0, 2), T[], Int[],
+            tau0, N, "mtotdev", confidence
+        )
+        return result
+    end
+    
+    # Keep only valid results
+    tau = tau[valid_indices]
+    Mvar = Mvar[valid_indices]
+    mlist_valid = mlist[valid_indices]
+    neff = neff[valid_indices]
+    alpha = alpha[valid_indices]
+    edf_vals = edf_vals[valid_indices]
+    
+    # Convert variance to deviation
+    mtotdev_vals = sqrt.(Mvar)
+    
+    # EDF calculation (placeholder)
+    for k in eachindex(mlist_valid)
+        edf_vals[k] = neff[k]  # Simple approximation
+    end
+    
+    # Compute confidence intervals
+    ci = compute_ci(mtotdev_vals, edf_vals, confidence, alpha, neff)
+    
+    # Create result structure
+    result = DeviationResult(
+        tau, mtotdev_vals, edf_vals, ci, alpha, neff,
+        tau0, N, "mtotdev", confidence
+    )
+    
+    return result
+end
+
+# Multiple dispatch for mtotdev different return patterns
+function mtotdev(phase_data::AbstractVector, tau0::Real, ::Val{2}; kwargs...)
+    result = mtotdev(phase_data, tau0; kwargs...)
+    return result.tau, result.deviation
+end
+
+function mtotdev(phase_data::AbstractVector, tau0::Real, ::Val{3}; kwargs...)
+    result = mtotdev(phase_data, tau0; kwargs...)
+    return result.tau, result.deviation, result.edf
+end
+
+function mtotdev(phase_data::AbstractVector, tau0::Real, ::Val{4}; kwargs...)
+    result = mtotdev(phase_data, tau0; kwargs...)
+    return result.tau, result.deviation, result.edf, result.ci
+end
+
+function mtotdev(phase_data::AbstractVector, tau0::Real, ::Val{5}; kwargs...)
+    result = mtotdev(phase_data, tau0; kwargs...)
+    return result.tau, result.deviation, result.edf, result.ci, result.alpha
+end
+
+"""
+    htotdev(phase_data, tau0; mlist=nothing, confidence=0.683)
+
+Compute Hadamard total deviation from phase data.
+Hadamard total deviation uses SP1065 detrending method and matches allantools/Stable32 results.
+
+# Arguments
+- `phase_data`: Phase data vector (seconds)
+- `tau0`: Sampling interval (seconds)
+- `mlist`: Averaging factors (optional, defaults to octave spacing with ≥3m points)
+- `confidence`: Confidence level for intervals (default: 0.683)
+
+# Returns
+Hadamard total deviation (dimensionless frequency stability measure)
+
+# References
+NIST SP1065 Section 5.2.14
+"""
+function htotdev(phase_data::AbstractVector{T}, tau0::Real;
+                 mlist::Union{Nothing,AbstractVector{Int}}=nothing,
+                 confidence::Real=0.683) where T<:Real
+    
+    # Validate inputs
+    x = validate_phase_data(phase_data)
+    tau0 = validate_tau0(tau0)
+    N = length(x)
+    
+    # Convert phase to fractional frequency
+    y = diff(x) ./ tau0
+    Ny = length(y)
+    
+    # Default m_list: octave-spaced values with ≥3m points available
+    if mlist === nothing
+        mlist = [2^k for k in 0:floor(Int, log2(Ny/3))]
+    end
+    
+    # Initialize outputs
+    tau = mlist .* tau0
+    htotdev_vals = fill(NaN, length(mlist))
+    edf_vals = fill(NaN, length(mlist))
+    neff = fill(0, length(mlist))
+    
+    # Noise identification (placeholder)
+    alpha = noise_id(x, mlist, "phase")
+    
+    # Compute HTOTVAR for each m
+    valid_indices = Int[]
+    for (idx, m) in enumerate(mlist)
+        # Special case: m=1 uses overlapping HDEV
+        if m == 1
+            hdev_result = hdev(x, tau0, mlist=[1])
+            if !isempty(hdev_result.deviation)
+                htotdev_vals[idx] = hdev_result.deviation[1]
+                push!(valid_indices, idx)
+            end
+            continue
+        end
+        
+        # Number of subsequences
+        n_iterations = Ny - 3*m + 1
+        if n_iterations < 1
+            continue
+        end
+        
+        push!(valid_indices, idx)
+        neff[idx] = n_iterations
+        
+        # Accumulator for variance
+        dev_sum = zero(T)
+        
+        # Loop over subsequences
+        for i in 0:(n_iterations-1)
+            # Extract 3m points
+            xs = y[i+1:i+3*m]
+            
+            # Remove linear trend using half-average method
+            half1_idx = floor(Int, 3*m/2)
+            half2_idx = ceil(Int, 3*m/2)
+            
+            # Calculate means of first and second halves
+            mean1 = mean(xs[1:half1_idx])
+            mean2 = mean(xs[half2_idx+1:end])  # Fixed: added +1
+            
+            # Calculate slope based on odd/even
+            if mod(3*m, 2) == 1  # 3m is odd
+                slope = (mean2 - mean1) / (0.5*(3*m-1) + 1)
+            else  # 3m is even
+                slope = (mean2 - mean1) / (0.5*3*m)
+            end
+            
+            # Detrend the sequence
+            x0 = zeros(T, length(xs))
+            for j in 0:(length(xs)-1)
+                x0[j+1] = xs[j+1] - slope * (j - floor(3*m/2))
+            end
+            
+            # Extend by uninverted even reflection
+            xstar = [x0[end:-1:1]; x0; x0[end:-1:1]]
+            
+            # Calculate Hadamard differences using cumsum for efficiency
+            cs = cumsum([zero(T); xstar])
+            j_indices = 0:(6*m-1)
+            
+            # Calculate three m-point window sums
+            sum1 = cs[j_indices.+m.+1] - cs[j_indices.+1]
+            sum2 = cs[j_indices.+2*m.+1] - cs[j_indices.+m.+1]
+            sum3 = cs[j_indices.+3*m.+1] - cs[j_indices.+2*m.+1]
+            
+            # Convert to means
+            xmean1 = sum1 ./ m
+            xmean2 = sum2 ./ m
+            xmean3 = sum3 ./ m
+            
+            # Hadamard differences
+            H = xmean3 - 2*xmean2 + xmean1
+            
+            # Sum of squares normalized by 6m
+            squaresum = sum(H.^2) / (6*m)
+            dev_sum += squaresum
+        end
+        
+        # Final normalization per equation (29): divide by 6*(N-3m+1)
+        htotvar = dev_sum / (6 * n_iterations)
+        htotdev_vals[idx] = sqrt(htotvar)
+    end
+    
+    # Trim to valid results only
+    if isempty(valid_indices)
+        # Return empty results if no valid calculations
+        result = DeviationResult(
+            T[], T[], T[], Matrix{T}(undef, 0, 2), T[], Int[],
+            tau0, N, "htotdev", confidence
+        )
+        return result
+    end
+    
+    # Keep only valid results
+    tau = tau[valid_indices]
+    htotdev_vals = htotdev_vals[valid_indices]
+    mlist_valid = mlist[valid_indices]
+    neff = neff[valid_indices]
+    alpha = alpha[valid_indices]
+    edf_vals = edf_vals[valid_indices]
+    
+    # EDF calculation (placeholder)
+    for k in eachindex(mlist_valid)
+        edf_vals[k] = neff[k]  # Simple approximation
+    end
+    
+    # Bias correction (simplified - in full implementation would use bias_correction function)
+    # For now, assume bias correction factors B ≈ 1 (placeholder)
+    B = ones(T, length(htotdev_vals))  # Placeholder
+    for k in eachindex(mlist_valid)
+        if mlist_valid[k] != 1  # Skip m=1 since it uses HDEV
+            htotdev_vals[k] = htotdev_vals[k] * sqrt(B[k])
+        end
+    end
+    
+    # Compute confidence intervals
+    ci = compute_ci(htotdev_vals, edf_vals, confidence, alpha, neff)
+    
+    # Create result structure
+    result = DeviationResult(
+        tau, htotdev_vals, edf_vals, ci, alpha, neff,
+        tau0, N, "htotdev", confidence
+    )
+    
+    return result
+end
+
+# Multiple dispatch for htotdev different return patterns
+function htotdev(phase_data::AbstractVector, tau0::Real, ::Val{2}; kwargs...)
+    result = htotdev(phase_data, tau0; kwargs...)
+    return result.tau, result.deviation
+end
+
+function htotdev(phase_data::AbstractVector, tau0::Real, ::Val{3}; kwargs...)
+    result = htotdev(phase_data, tau0; kwargs...)
+    return result.tau, result.deviation, result.edf
+end
+
+function htotdev(phase_data::AbstractVector, tau0::Real, ::Val{4}; kwargs...)
+    result = htotdev(phase_data, tau0; kwargs...)
+    return result.tau, result.deviation, result.edf, result.ci
+end
+
+function htotdev(phase_data::AbstractVector, tau0::Real, ::Val{5}; kwargs...)
+    result = htotdev(phase_data, tau0; kwargs...)
+    return result.tau, result.deviation, result.edf, result.ci, result.alpha
+end
+
+"""
+    mhtotdev(phase_data, tau0; mlist=nothing, confidence=0.683)
+
+Compute Modified Hadamard total deviation from phase data.
+Modified Hadamard total deviation uses linear detrending and symmetric reflection.
+
+# Arguments
+- `phase_data`: Phase data vector (seconds)
+- `tau0`: Sampling interval (seconds)
+- `mlist`: Averaging factors (optional, defaults to octave spacing with ≥4m points)
+- `confidence`: Confidence level for intervals (default: 0.683)
+
+# Returns
+Modified Hadamard total deviation (dimensionless frequency stability measure)
+
+# References
+NIST SP1065 Sections 5.2.12 & 5.2.14
+"""
+function mhtotdev(phase_data::AbstractVector{T}, tau0::Real;
+                  mlist::Union{Nothing,AbstractVector{Int}}=nothing,
+                  confidence::Real=0.683) where T<:Real
+    
+    # Validate inputs
+    x = validate_phase_data(phase_data)
+    tau0 = validate_tau0(tau0)
+    N = length(x)
+    
+    # Default m_list: octave-spaced values with ≥4m points available (exact MATLAB logic)
+    if mlist === nothing
+        mlist = [2^k for k in 0:floor(Int, log2(N/4))]
+    end
+    
+    # Initialize outputs
+    tau = mlist .* tau0
+    mhtotdev_vals = fill(NaN, length(mlist))
+    MHvar = fill(NaN, length(mlist))
+    edf_vals = fill(NaN, length(mlist))  # No published EDF model
+    neff = N .- 4*mlist .+ 1
+    
+    # Noise identification (placeholder)
+    alpha = noise_id(x, mlist, "phase")
+    
+    # Compute MHTOTDEV for each m
+    valid_indices = Int[]
+    for (k, m) in enumerate(mlist)
+        nsubs = neff[k]
+        if nsubs < 1
+            continue
+        end
+        
+        push!(valid_indices, k)
+        total_sum = zero(T)
+        
+        for n in 1:nsubs
+            # Extract phase segment (3m+1 points for 3m frequency samples)
+            phase_seg = x[n:n+3*m]
+            
+            # Linear detrending of phase data using our detrend_linear function
+            phase_detrended = detrend_linear(phase_seg)
+            
+            # Symmetric reflection of phase data
+            ext = [phase_detrended[end:-1:1]; phase_detrended; phase_detrended[end:-1:1]]
+            
+            # Third difference on phase data
+            L = length(ext) - 3*m
+            d3 = ext[1:L] - 3*ext[1+m:L+m] + 3*ext[1+2*m:L+2*m] - ext[1+3*m:L+3*m]
+            
+            # Moving average
+            S = cumsum([zero(T); d3])
+            if length(S) > m
+                avg = S[m+1:end] - S[1:end-m]
+                block_var = mean(avg.^2) / (6 * m^2)
+            else
+                block_var = zero(T)
+            end
+            total_sum += block_var
+        end
+        
+        # Store average variance
+        MHvar[k] = total_sum / nsubs
+        
+        # Convert to deviation and normalize by tau
+        mhtotdev_vals[k] = sqrt(MHvar[k]) / tau[k]
+    end
+    
+    # Trim to valid results only
+    if isempty(valid_indices)
+        # Return empty results if no valid calculations
+        result = DeviationResult(
+            T[], T[], T[], Matrix{T}(undef, 0, 2), T[], Int[],
+            tau0, N, "mhtotdev", confidence
+        )
+        return result
+    end
+    
+    # Keep only valid results
+    tau = tau[valid_indices]
+    mhtotdev_vals = mhtotdev_vals[valid_indices]
+    mlist_valid = mlist[valid_indices]
+    neff = neff[valid_indices]
+    alpha = alpha[valid_indices]
+    edf_vals = edf_vals[valid_indices]  # Will remain NaN - no published EDF model
+    
+    # Compute confidence intervals
+    ci = compute_ci(mhtotdev_vals, edf_vals, confidence, alpha, neff)
+    
+    # Create result structure
+    result = DeviationResult(
+        tau, mhtotdev_vals, edf_vals, ci, alpha, neff,
+        tau0, N, "mhtotdev", confidence
+    )
+    
+    return result
+end
+
+# Multiple dispatch for mhtotdev different return patterns
+function mhtotdev(phase_data::AbstractVector, tau0::Real, ::Val{2}; kwargs...)
+    result = mhtotdev(phase_data, tau0; kwargs...)
+    return result.tau, result.deviation
+end
+
+function mhtotdev(phase_data::AbstractVector, tau0::Real, ::Val{3}; kwargs...)
+    result = mhtotdev(phase_data, tau0; kwargs...)
+    return result.tau, result.deviation, result.edf
+end
+
+function mhtotdev(phase_data::AbstractVector, tau0::Real, ::Val{4}; kwargs...)
+    result = mhtotdev(phase_data, tau0; kwargs...)
+    return result.tau, result.deviation, result.edf, result.ci
+end
+
+function mhtotdev(phase_data::AbstractVector, tau0::Real, ::Val{5}; kwargs...)
+    result = mhtotdev(phase_data, tau0; kwargs...)
+    return result.tau, result.deviation, result.edf, result.ci, result.alpha
+end
