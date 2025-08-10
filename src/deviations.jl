@@ -5,6 +5,10 @@
 
 Compute Allan deviation from phase data.
 
+**Note**: This implementation computes the **overlapping Allan deviation** (OADEV),
+which matches AllanTools' `adev()` function. For non-overlapping Allan deviation,
+use a specialized function or set appropriate stride parameters.
+
 # Arguments
 - `phase_data`: Phase data vector (seconds)
 - `tau0`: Sampling interval (seconds)
@@ -26,6 +30,12 @@ tau, dev = adev(phase_data, 1.0)
 # Custom parameters
 result = adev(phase_data, 1.0, mlist=[1,2,4,8], confidence=0.95)
 ```
+
+# Algorithm
+Computes overlapping Allan variance using the formula:
+σ²_y(τ) = (1/2) * mean((x[i+2m] - 2*x[i+m] + x[i])²) / τ²
+
+where x is phase data and m is the averaging factor.
 """
 function adev(phase_data::AbstractVector{T}, tau0::Real; 
               mlist::Union{Nothing,AbstractVector{Int}}=nothing,
@@ -137,7 +147,7 @@ function mdev(phase_data::AbstractVector{T}, tau0::Real;
     x_cumsum = cumsum([zero(T); x])
     
     # Main loop - exactly matching MATLAB logic
-    for k in 1:length(mlist)
+    for k in eachindex(mlist)
         m = mlist[k]
         N_eff_k = N - 3*m + 1
         neff[k] = N_eff_k
@@ -448,7 +458,10 @@ end
     hdev(phase_data, tau0; mlist=nothing, confidence=0.683)
 
 Compute Hadamard deviation from phase data.
-Hadamard deviation uses overlapping third differences for robust frequency drift rejection.
+
+**Note**: This implementation computes the **overlapping Hadamard deviation** (OHDEV),
+which matches AllanTools' `hdev()` function. This uses overlapping third differences
+for robust frequency drift rejection.
 
 # Arguments
 - `phase_data`: Phase data vector (seconds)
@@ -458,6 +471,12 @@ Hadamard deviation uses overlapping third differences for robust frequency drift
 
 # Returns
 Hadamard deviation (dimensionless frequency stability measure)
+
+# Algorithm
+Computes overlapping Hadamard variance using third differences:
+σ²_H(τ) = (1/6) * mean((x[i+3m] - 3*x[i+2m] + 3*x[i+m] - x[i])²) / τ²
+
+where x is phase data and m is the averaging factor.
 
 # References
 NIST SP1065 Sections 5.2.8–5.2.9

@@ -349,3 +349,140 @@ function coeff_htot(alpha::Int)
     elseif alpha == -2; return (0.909, 1.00) # RWFM
     else; return (NaN, NaN); end
 end
+
+# -------------------- Bias Correction --------------------
+
+"""
+    bias_correction(alpha, var_type, tau, T)
+
+Bias factor B(α) for TOTVAR, MTOT, and HTOT corrections.
+
+Translated from MATLAB stablab/+stablab/bias_correction.m
+
+# Arguments
+- `alpha`: noise exponent α (scalar or vector)
+- `var_type`: "totvar", "mtot", or "htot"
+- `tau`: averaging time τ (same shape as alpha)
+- `T`: record duration T = N·τ₀ (scalar)
+
+# Returns
+Bias factor for each τ, same size as alpha
+
+# References
+- NIST SP1065 §§5.11–5.13
+- Greenhall & Riley, "Uncertainty of Stability Variances", PTTI 2003
+"""
+function bias_correction(alpha::Union{Int,Vector{Int}}, var_type::String, 
+                        tau::Union{Real,Vector{<:Real}}, T::Real)
+    
+    # Ensure alpha and tau are the same size
+    if isa(alpha, Int)
+        alpha = [alpha]
+    end
+    if isa(tau, Real)
+        tau = [tau]
+    end
+    
+    B = ones(Float64, max(length(alpha), length(tau)))
+    
+    # Expand to same length if needed
+    if length(alpha) == 1 && length(tau) > 1
+        alpha = fill(alpha[1], length(tau))
+    elseif length(tau) == 1 && length(alpha) > 1
+        tau = fill(tau[1], length(alpha))
+    end
+    
+    var_type_lower = lowercase(var_type)
+    
+    if var_type_lower == "totvar"
+        # TOTVAR: B(τ) = 1 - a * (τ / T)
+        for k in eachindex(alpha)
+            if alpha[k] == -1
+                a = 1 / (3 * log(2))  # ≈ 0.481
+                B[k] = 1 - a * (tau[k] / T)
+            elseif alpha[k] == -2
+                a = 0.75
+                B[k] = 1 - a * (tau[k] / T)
+            else
+                B[k] = 1.0  # no correction for other α
+            end
+        end
+        
+    elseif var_type_lower == "mtot"
+        # MTOTDEV bias factors from SP1065 Table 11
+        bias_table = Dict(
+            2 => 1.06,
+            1 => 1.17,
+            0 => 1.27,
+            -1 => 1.30,
+            -2 => 1.31
+        )
+        for k in eachindex(alpha)
+            if haskey(bias_table, alpha[k])
+                B[k] = bias_table[alpha[k]]
+            else
+                B[k] = 1.0
+            end
+        end
+        
+    elseif var_type_lower == "htot"
+        # HTOT bias: B = 1 / (1 + a), using a(α) from Table 1 (FCS 2001)
+        a_table = Dict(
+            0 => -0.005,
+            -1 => -0.149,
+            -2 => -0.229,
+            -3 => -0.283,
+            -4 => -0.321
+        )
+        for k in eachindex(alpha)
+            if haskey(a_table, alpha[k])
+                a = a_table[alpha[k]]
+                B[k] = 1 / (1 + a)  # bias factor = 1 / (1 + a)
+            else
+                B[k] = 1.0  # fallback if α not listed
+            end
+        end
+        
+    else
+        error("Unknown var_type \"$var_type\". Use \"totvar\", \"mtot\", or \"htot\".")
+    end
+    
+    return B
+end
+
+"""
+    apply_bias_correction!(result::DeviationResult)
+
+Apply bias correction to total deviation results in-place.
+"""
+function apply_bias_correction!(result::DeviationResult)
+    method = result.method
+    
+    # Only apply to total deviation types
+    if method in ["totdev", "mtotdev", "htotdev", "mhtotdev"]
+        T = (result.N - 1) * result.tau0  # Record duration
+        
+        # Map method names to var_type
+        var_type_map = Dict(
+            "totdev" => "totvar",
+            "mtotdev" => "mtot", 
+            "htotdev" => "htot",
+            "mhtotdev" => "htot"  # Use htot correction for mhtotdev
+        )
+        
+        var_type = var_type_map[method]
+        
+        # Calculate bias correction factors
+        B = bias_correction(result.alpha, var_type, result.tau, T)
+        
+        # Apply correction: σ_corrected = σ_measured / B
+        result.deviation ./= B
+        
+        # If confidence intervals exist, correct them too
+        if !any(isnan, result.ci)
+            result.ci ./= B
+        end
+    end
+    
+    return result
+end

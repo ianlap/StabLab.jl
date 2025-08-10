@@ -125,46 +125,45 @@ function mtie(data::Vector{T}, tau0::Real=1.0;
     for (idx, m) in enumerate(m_list)
         tau[idx] = m * tau0
         
-        # Number of windows
-        n_windows = N - m + 1
-        if n_windows < 1
+        # AllanTools uses window size mj+1, and n_windows = N - mj
+        window_size = m + 1
+        n_windows = N - m  # Number of valid window positions
+        if n_windows < 1 || window_size > N
             deviation[idx] = NaN
             neff[idx] = 0
             continue
         end
         
         # Efficient MTIE computation
-        if m == 1
-            # For m=1, MTIE is always 0 (single point has no variation)
-            deviation[idx] = zero(T)
-        elseif m < 100  # Small window - use simple approach
+        if m < 100  # Small window - use simple approach
             max_tie = zero(T)
             for i in 1:n_windows
-                window = @view data[i:i+m-1]
+                # Window from i to i+m (inclusive), size = m+1
+                window = @view data[i:i+m]
                 tie = maximum(window) - minimum(window)
                 max_tie = max(max_tie, tie)
             end
             deviation[idx] = max_tie
         else  # Large window - use optimized algorithm
-            # Initialize with first window
-            curr_max = maximum(@view data[1:m])
-            curr_min = minimum(@view data[1:m])
+            # Initialize with first window (size m+1)
+            curr_max = maximum(@view data[1:window_size])
+            curr_min = minimum(@view data[1:window_size])
             max_tie = curr_max - curr_min
             
             # Slide window efficiently
             for i in 2:n_windows
                 # Check if we need to recalculate max/min
-                leaving = data[i-1]
-                entering = data[i+m-1]
+                leaving = data[i-1]  # Element leaving the window
+                entering = data[i+m]  # Element entering the window
                 
                 if leaving == curr_max
-                    curr_max = maximum(@view data[i:i+m-1])
+                    curr_max = maximum(@view data[i:i+m])
                 elseif entering > curr_max
                     curr_max = entering
                 end
                 
                 if leaving == curr_min
-                    curr_min = minimum(@view data[i:i+m-1])
+                    curr_min = minimum(@view data[i:i+m])
                 elseif entering < curr_min
                     curr_min = entering
                 end
