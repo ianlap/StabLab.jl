@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2025-08-09
+
+### Added
+- **Professional plotting functionality**: `stabplot()` creates publication-quality stability plots
+- **Data loading utilities**: `load_phase_data()` with automatic scaling and format detection
+- **Comprehensive reporting**: `stability_report()` generates multi-method analysis with plots
+- **Results table printing**: Formatted statistical output with confidence intervals and EDF
+- **Confidence interval visualization**: Shaded regions on plots for uncertainty bounds
+- **Example demonstration**: Complete plotting example with rubidium clock data
+- **Repository management**: Added `.gitignore` for cleaner version control
+
+### Dependencies
+- Added Plots.jl for professional visualization
+- Added DelimitedFiles for flexible data loading
+- Added Printf for formatted table output
+
+### Technical Improvements
+- Fixed Julia string interpolation in formatted output
+- Support for both single and two-column data file formats
+- Automatic plot labeling based on deviation type
+- Log-log and linear scale options for flexibility
+
 ## [0.4.0] - 2025-08-09
 
 ### Added

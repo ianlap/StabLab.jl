@@ -1,0 +1,16 @@
+# Generated files
+examples/*.png
+examples/*.txt
+
+# Julia artifacts
+Manifest.toml
+*.jl.*.cov
+*.jl.cov
+*.jl.mem
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store

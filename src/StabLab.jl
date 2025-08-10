@@ -9,6 +9,9 @@ export adev, mdev, mhdev, hdev, mhtotdev, tdev, ldev, totdev, mtotdev, htotdev
 # Export helper functions
 export noise_id, compute_ci
 
+# Export plotting functions
+export stabplot, load_phase_data, print_results_table, stability_report
+
 # Export data types
 export DeviationResult
 
@@ -48,5 +51,6 @@ include("core.jl")
 include("noise.jl")
 include("confidence.jl")
 include("deviations.jl")
+include("plotting.jl")
 
 end
