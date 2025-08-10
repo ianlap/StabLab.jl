@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2025-08-09
+
+### Added
+- **Time Interval Error (TIE)**: RMS phase deviation measurement for telecom timing analysis
+- **Maximum Time Interval Error (MTIE)**: Peak phase deviation for ITU-T timing requirements
+- **Parabolic Deviation (PDEV)**: Drift-robust frequency stability measure with parabolic weighting
+- **THEO1 Deviation**: Two-sample variance with improved confidence intervals and extended range
+- **ITU-T Timing Masks**: G.811/G.812 mask generation for telecom compliance testing
+- **Comprehensive test suite**: Validation of theoretical relationships and numerical stability
+- **Time error module**: Dedicated `src/time_error.jl` for telecom timing functions
+
+### Technical Improvements
+- Efficient MTIE algorithms for both small and large observation windows
+- Numerical stability guards against edge cases in parabolic fitting
+- Support for even-only averaging factors in THEO1 (ITU requirement)
+- Professional documentation with mathematical definitions and references
+
+### Testing
+- Theoretical slope validation for different noise types
+- Drift rejection comparison between PDEV and Allan deviations  
+- Edge case handling for single-point and large-window scenarios
+- Cross-validation with AllanTools reference implementations
+
 ## [0.4.1] - 2025-08-09
 
 ### Added

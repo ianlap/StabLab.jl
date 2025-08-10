@@ -6,6 +6,9 @@ using LinearAlgebra
 # Export main deviation functions
 export adev, mdev, mhdev, hdev, mhtotdev, tdev, ldev, totdev, mtotdev, htotdev
 
+# Export time interval error functions
+export tie, mtie, pdev, theo1
+
 # Export helper functions
 export noise_id, compute_ci
 
@@ -51,6 +54,7 @@ include("core.jl")
 include("noise.jl")
 include("confidence.jl")
 include("deviations.jl")
+include("time_error.jl")
 include("plotting.jl")
 
 end
