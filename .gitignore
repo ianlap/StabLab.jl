@@ -1,6 +1,17 @@
+# Large data files
+validation/data/*.txt
+validation/data/*.csv
+examples/*.txt
+examples/*.csv
+
+# Results and plots (can be regenerated)
+results/*.json
+validation/*.json
+validation/*.png
+results/*.png
+
 # Generated files
 examples/*.png
-examples/*.txt
 
 # Julia artifacts
 Manifest.toml
@@ -14,3 +25,6 @@ Manifest.toml
 *.swp
 *~
 .DS_Store
+
+# Logs
+*.log
