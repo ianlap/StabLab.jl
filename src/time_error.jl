@@ -47,24 +47,25 @@ function tie(data::Vector{T}, tau0::Real=1.0;
     for (idx, m) in enumerate(m_list)
         tau[idx] = m * tau0
         
-        # Number of windows
-        n_windows = N - m
-        if n_windows < 1
+        # Number of pairs (AllanTools algorithm)
+        n_pairs = N - m
+        if n_pairs < 1
             deviation[idx] = NaN
             neff[idx] = 0
             continue
         end
         
-        # Compute TIE for each window
-        tie_values = zeros(T, n_windows)
-        for i in 1:n_windows
-            window = @view data[i:i+m]
-            tie_values[i] = maximum(window) - minimum(window)
+        # Compute max-min for each pair (i, i+m) - AllanTools method
+        tie_values = zeros(T, n_pairs)
+        for i in 1:n_pairs
+            pair_max = max(data[i], data[i+m])
+            pair_min = min(data[i], data[i+m])
+            tie_values[i] = pair_max - pair_min
         end
         
         # RMS of TIE values
         deviation[idx] = sqrt(mean(tie_values .^ 2))
-        neff[idx] = n_windows
+        neff[idx] = n_pairs
     end
     
     return DeviationResult(tau, deviation, edf, ci, alpha, neff, 
